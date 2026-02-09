@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "config_flow": true,
   "single_config_entry": true,
-  "documentation": "https://www.example.com",
+  "documentation": "https://www.github.com/gabbro246/portfolio_assets",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "dependencies": [],

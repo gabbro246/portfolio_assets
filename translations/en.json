@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Portfolio Assets",
-        "description": "Adds hardcoded assets and creates one device per asset with Price, Amount and Value entities. Also creates a Portfolio device with totals for Crypto, ETFs and overall."
+        "description": "Creates one device per configured asset with Price, Amount and Value entities, plus a Portfolio device with totals for Crypto, ETFs and Funds. Assets are defined in configuration.yaml and imported on restart. Supported sources: binance, boerse_frankfurt, wienerborse_oekb."
       }
     },
     "abort": {

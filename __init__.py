@@ -11,7 +11,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN, PLATFORMS
+from .const import (
+    DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
+    PLATFORMS,
+    SOURCE_BOERSE_FRANKFURT,
+    SOURCE_BINANCE,
+    SOURCE_WIENERBOERSE_OEKB,
+    SUPPORTED_KINDS,
+)
 from .coordinator import PortfolioDataCoordinator
 
 
@@ -19,8 +27,8 @@ ASSET_SCHEMA = vol.Schema(
     {
         vol.Required("asset_id"): cv.slug,
         vol.Required("name"): cv.string,
-        vol.Required("source"): vol.In(["binance", "boerse_frankfurt"]),
-        vol.Required("kind"): vol.In(["crypto", "etf"]),
+        vol.Required("source"): vol.In([SOURCE_BINANCE, SOURCE_BOERSE_FRANKFURT, SOURCE_WIENERBOERSE_OEKB]),
+        vol.Required("kind"): vol.In(sorted(SUPPORTED_KINDS)),
         vol.Required("instrument"): cv.string,
         vol.Optional("amount_unit", default=""): cv.string,
         vol.Optional("mic", default="XETR"): cv.string,
@@ -31,7 +39,7 @@ CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
-                vol.Optional("update_interval", default=1800): cv.positive_int,
+                vol.Optional("update_interval", default=DEFAULT_UPDATE_INTERVAL): cv.positive_int,
                 vol.Optional("assets", default=[]): vol.All(cv.ensure_list, [ASSET_SCHEMA]),
             }
         )
@@ -42,12 +50,12 @@ CONFIG_SCHEMA = vol.Schema(
 
 def _normalize_config(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
-        return {"update_interval": 1800, "assets": []}
+        return {"update_interval": DEFAULT_UPDATE_INTERVAL, "assets": []}
 
     try:
-        update_interval = int(data.get("update_interval", 1800))
+        update_interval = int(data.get("update_interval", DEFAULT_UPDATE_INTERVAL))
     except (TypeError, ValueError):
-        update_interval = 1800
+        update_interval = DEFAULT_UPDATE_INTERVAL
 
     assets_in = data.get("assets", [])
     assets_out: list[dict[str, Any]] = []
@@ -72,7 +80,6 @@ def _normalize_config(data: Any) -> dict[str, Any]:
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration and apply YAML to the single config entry."""
     hass.data.setdefault(DOMAIN, {})
 
     if DOMAIN not in config:
@@ -106,7 +113,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Portfolio Assets from a config entry."""
     coordinator = PortfolioDataCoordinator(hass=hass, entry_data=dict(entry.data))
     coordinator.set_assets_from_entry_data(dict(entry.data))
     entry.runtime_data = coordinator
@@ -123,7 +129,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)

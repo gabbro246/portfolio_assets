@@ -67,7 +67,6 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data
-
     assets = _asset_defs_from_entry(entry)
 
     entities: list[SensorEntity] = []
@@ -77,6 +76,7 @@ async def async_setup_entry(
 
     entities.append(PortfolioGroupTotalValueSensor(coordinator=coordinator, assets=assets, group_kind="crypto"))
     entities.append(PortfolioGroupTotalValueSensor(coordinator=coordinator, assets=assets, group_kind="etf"))
+    entities.append(PortfolioGroupTotalValueSensor(coordinator=coordinator, assets=assets, group_kind="fund"))
     entities.append(PortfolioOverallTotalValueSensor(coordinator=coordinator, assets=assets))
 
     async_add_entities(entities)
@@ -99,15 +99,17 @@ class _PortfolioBaseSensor(CoordinatorEntity, SensorEntity):
             model=asset.kind,
         )
 
-    def _get_price(self) -> float | None:
+    def _row(self) -> dict[str, Any] | None:
         data = getattr(self.coordinator, "data", None)
         if not isinstance(data, dict):
             return None
-
         row = data.get(self._asset.asset_id)
-        if not isinstance(row, dict):
-            return None
+        return row if isinstance(row, dict) else None
 
+    def _get_price(self) -> float | None:
+        row = self._row()
+        if not row:
+            return None
         price = row.get("price")
         try:
             return float(price)
@@ -115,28 +117,25 @@ class _PortfolioBaseSensor(CoordinatorEntity, SensorEntity):
             return None
 
     def _get_updated_at(self) -> str | None:
-        data = getattr(self.coordinator, "data", None)
-        if not isinstance(data, dict):
+        row = self._row()
+        if not row:
             return None
-
-        row = data.get(self._asset.asset_id)
-        if not isinstance(row, dict):
-            return None
-
         updated_at = row.get("updated_at")
         return str(updated_at) if updated_at is not None else None
 
     def _get_source(self) -> str | None:
-        data = getattr(self.coordinator, "data", None)
-        if not isinstance(data, dict):
+        row = self._row()
+        if not row:
             return None
-
-        row = data.get(self._asset.asset_id)
-        if not isinstance(row, dict):
-            return None
-
         source = row.get("source")
         return str(source) if source is not None else None
+
+    def _get_quote_url(self) -> str | None:
+        row = self._row()
+        if not row:
+            return None
+        url = row.get("quote_url")
+        return str(url) if url else None
 
     def _get_amount(self) -> float:
         amounts = getattr(self.coordinator, "amounts", None)
@@ -175,6 +174,10 @@ class PortfolioPriceSensor(_PortfolioBaseSensor):
         }
         if self._asset.source == "boerse_frankfurt":
             attrs["mic"] = self._asset.mic
+        if self._asset.source == "wienerborse_oekb":
+            q = self._get_quote_url()
+            if q:
+                attrs["quote_url"] = q
         return attrs
 
 
@@ -215,7 +218,7 @@ class PortfolioValueSensor(_PortfolioBaseSensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {
+        attrs: dict[str, Any] = {
             "asset_id": self._asset.asset_id,
             "kind": self._asset.kind,
             "amount": self._get_amount(),
@@ -224,6 +227,11 @@ class PortfolioValueSensor(_PortfolioBaseSensor):
             "updated_at": self._get_updated_at(),
             "instrument": self._asset.instrument,
         }
+        if self._asset.source == "wienerborse_oekb":
+            q = self._get_quote_url()
+            if q:
+                attrs["quote_url"] = q
+        return attrs
 
 
 class _PortfolioTotalsBase(CoordinatorEntity, SensorEntity):
@@ -341,6 +349,9 @@ class PortfolioGroupTotalValueSensor(_PortfolioTotalsBase):
         elif group_kind == "etf":
             self._attr_unique_id = f"{DOMAIN}_portfolio_etf_total_value"
             self._attr_name = "ETF Total Value"
+        elif group_kind == "fund":
+            self._attr_unique_id = f"{DOMAIN}_portfolio_fund_total_value"
+            self._attr_name = "Fund Total Value"
         else:
             self._attr_unique_id = f"{DOMAIN}_portfolio_{group_kind}_total_value"
             self._attr_name = f"{group_kind} Total Value"

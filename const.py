@@ -1,27 +1,29 @@
 from __future__ import annotations
 
-from datetime import timedelta
-import logging
-from typing import Final
+DOMAIN = "portfolio_assets"
 
-LOGGER = logging.getLogger(__package__)
+PLATFORMS: list[str] = ["sensor", "number"]
 
-DOMAIN: Final = "portfolio_assets"
+DEFAULT_UPDATE_INTERVAL = 1800
 
-PLATFORMS: Final[list[str]] = ["sensor", "number"]
+SOURCE_BINANCE = "binance"
+SOURCE_BOERSE_FRANKFURT = "boerse_frankfurt"
+SOURCE_WIENERBOERSE_OEKB = "wienerborse_oekb"
 
-DEFAULT_UPDATE_INTERVAL_SECONDS: Final = 1800
-DEFAULT_UPDATE_INTERVAL: Final = timedelta(seconds=DEFAULT_UPDATE_INTERVAL_SECONDS)
+SUPPORTED_SOURCES: set[str] = {
+    SOURCE_BINANCE,
+    SOURCE_BOERSE_FRANKFURT,
+    SOURCE_WIENERBOERSE_OEKB,
+}
 
-CURRENCY_EUR: Final = "EUR"
+SUPPORTED_KINDS: set[str] = {"crypto", "etf", "fund"}
 
-SOURCE_BINANCE: Final = "binance"
-SOURCE_BOERSE_FRANKFURT: Final = "boerse_frankfurt"
+HTTP_TIMEOUT = 20
 
-DEFAULT_MIC: Final = "XETR"
+BINANCE_API_BASE = "https://data-api.binance.vision"
+BINANCE_TICKER_PRICE_PATH = "/api/v3/ticker/price"
 
-BINANCE_TICKER_PRICE_ENDPOINT: Final = "https://data-api.binance.vision/api/v3/ticker/price"
+BOERSE_FRANKFURT_QUOTE_URL = "https://api.boerse-frankfurt.de/v1/data/quote_box/single"
 
-BOERSE_FRANKFURT_QUOTE_URL_TEMPLATE: Final = (
-    "https://api.boerse-frankfurt.de/v1/data/quote_box/single?isin={isin}&mic={mic}"
-)
+WIENERBOERSE_OEKB_LIST_URL = "https://www.wienerborse.at/fondsdaten-oekb/"
+WIENERBOERSE_OEKB_QUOTE_URL_PREFIX = "https://www.wienerborse.at/marktdaten/fondsdaten-der-oekb/preisdaten/"
