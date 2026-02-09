@@ -1,0 +1,14 @@
+{
+  "title": "Portfolio Assets",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Portfolio Assets",
+        "description": "Adds hardcoded assets and creates one device per asset with Price, Amount and Value entities. Also creates a Portfolio device with totals for Crypto, ETFs and overall."
+      }
+    },
+    "abort": {
+      "already_configured": "Portfolio Assets is already configured."
+    }
+  }
+}

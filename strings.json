@@ -1,0 +1,14 @@
+{
+  "title": "Portfolio Assets",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Portfolio Assets",
+        "description": "Creates one device per configured asset with Price, Amount and Value entities, plus a Portfolio device with totals. Assets are defined in configuration.yaml and imported on restart."
+      }
+    },
+    "abort": {
+      "already_configured": "Portfolio Assets is already configured."
+    }
+  }
+}
