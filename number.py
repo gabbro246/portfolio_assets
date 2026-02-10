@@ -73,6 +73,7 @@ class PortfolioAmountNumber(RestoreEntity, NumberEntity):
     _attr_mode = NumberMode.BOX
     _attr_should_poll = False
     _attr_has_entity_name = True
+    _attr_icon = "mdi:counter"
 
     _attr_native_min_value = 0.0
     _attr_native_max_value = 1_000_000_000.0

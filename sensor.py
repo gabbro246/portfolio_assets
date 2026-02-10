@@ -167,6 +167,8 @@ class _PortfolioBaseSensor(CoordinatorEntity, SensorEntity):
 
 
 class PortfolioPriceSensor(_PortfolioBaseSensor):
+    _attr_icon = "mdi:tag"
+
     def __init__(self, coordinator: Any, asset: AssetDef) -> None:
         super().__init__(coordinator, asset)
 
@@ -191,7 +193,7 @@ class PortfolioPriceSensor(_PortfolioBaseSensor):
         }
         if self._asset.source == "boerse_frankfurt":
             attrs["mic"] = self._asset.mic
-        if self._asset.source == "wienerborse_oekb":
+        if self._asset.source == "wienerboerse_oekb":
             q = self._get_quote_url()
             if q:
                 attrs["quote_url"] = q
@@ -199,6 +201,8 @@ class PortfolioPriceSensor(_PortfolioBaseSensor):
 
 
 class PortfolioValueSensor(_PortfolioBaseSensor):
+    _attr_icon = "mdi:cash-multiple"
+
     def __init__(self, coordinator: Any, asset: AssetDef) -> None:
         super().__init__(coordinator, asset)
 
@@ -262,6 +266,7 @@ class _PortfolioTotalsBase(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "EUR"
+    _attr_icon = "mdi:sigma"
 
     def __init__(self, coordinator: Any, assets: list[AssetDef]) -> None:
         super().__init__(coordinator)
@@ -394,12 +399,15 @@ class PortfolioGroupValueSensor(_PortfolioTotalsBase):
         if group_kind == "crypto":
             object_id = "portfolio_crypto_value"
             self._attr_name = "Crypto Value"
+            self._attr_icon = "mdi:currency-btc"
         elif group_kind == "etf":
             object_id = "portfolio_etf_value"
             self._attr_name = "ETF Value"
+            self._attr_icon = "mdi:chart-line"
         elif group_kind == "fund":
             object_id = "portfolio_fund_value"
             self._attr_name = "Fund Value"
+            self._attr_icon = "mdi:bank-outline"
         else:
             object_id = f"portfolio_{group_kind}_value"
             self._attr_name = f"{group_kind} Value"
