@@ -49,20 +49,6 @@ Per asset:
 * `mic` (string, optional, default `XETR`)
   Only used for `boerse_frankfurt`.
 
-## Entity id scheme
-
-Per asset:
-
-* `sensor.<kind>_<asset_id>_price`
-* `number.<kind>_<asset_id>_amount`
-* `sensor.<kind>_<asset_id>_value`
-
-Portfolio totals:
-
-* `sensor.portfolio_crypto_value`
-* `sensor.portfolio_etf_value`
-* `sensor.portfolio_fund_value`
-* `sensor.portfolio_total_value`
 
 ## Examples
 
