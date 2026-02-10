@@ -13,6 +13,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_VALUE_MULTIPLIER,
     DOMAIN,
     PLATFORMS,
     SOURCE_BOERSE_FRANKFURT,
@@ -40,6 +41,7 @@ CONFIG_SCHEMA = vol.Schema(
         DOMAIN: vol.Schema(
             {
                 vol.Optional("update_interval", default=DEFAULT_UPDATE_INTERVAL): cv.positive_int,
+                vol.Optional("value_multiplier", default=DEFAULT_VALUE_MULTIPLIER): vol.Coerce(float),
                 vol.Optional("assets", default=[]): vol.All(cv.ensure_list, [ASSET_SCHEMA]),
             }
         )
@@ -50,12 +52,21 @@ CONFIG_SCHEMA = vol.Schema(
 
 def _normalize_config(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
-        return {"update_interval": DEFAULT_UPDATE_INTERVAL, "assets": []}
+        return {
+            "update_interval": DEFAULT_UPDATE_INTERVAL,
+            "value_multiplier": float(DEFAULT_VALUE_MULTIPLIER),
+            "assets": [],
+        }
 
     try:
         update_interval = int(data.get("update_interval", DEFAULT_UPDATE_INTERVAL))
     except (TypeError, ValueError):
         update_interval = DEFAULT_UPDATE_INTERVAL
+
+    try:
+        value_multiplier = float(data.get("value_multiplier", DEFAULT_VALUE_MULTIPLIER))
+    except (TypeError, ValueError):
+        value_multiplier = float(DEFAULT_VALUE_MULTIPLIER)
 
     assets_in = data.get("assets", [])
     assets_out: list[dict[str, Any]] = []
@@ -76,7 +87,11 @@ def _normalize_config(data: Any) -> dict[str, Any]:
                 }
             )
 
-    return {"update_interval": update_interval, "assets": assets_out}
+    return {
+        "update_interval": update_interval,
+        "value_multiplier": value_multiplier,
+        "assets": assets_out,
+    }
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:

@@ -137,14 +137,27 @@ class _PortfolioBaseSensor(CoordinatorEntity, SensorEntity):
         url = row.get("quote_url")
         return str(url) if url else None
 
-    def _get_amount(self) -> float:
+    def _amounts_dict(self) -> dict[str, float] | None:
         amounts = getattr(self.coordinator, "amounts", None)
-        if not isinstance(amounts, dict):
-            return 0.0
+        return amounts if isinstance(amounts, dict) else None
+
+    def _get_amount_optional(self) -> float | None:
+        amounts = self._amounts_dict()
+        if not amounts:
+            return None
+        if self._asset.asset_id not in amounts:
+            return None
         try:
-            return float(amounts.get(self._asset.asset_id, 0.0))
+            return float(amounts[self._asset.asset_id])
         except (TypeError, ValueError):
-            return 0.0
+            return None
+
+    def _get_value_multiplier(self) -> float:
+        try:
+            m = float(getattr(self.coordinator, "value_multiplier", 1.0))
+        except (TypeError, ValueError):
+            return 1.0
+        return m
 
     @property
     def available(self) -> bool:
@@ -158,10 +171,8 @@ class PortfolioPriceSensor(_PortfolioBaseSensor):
         super().__init__(coordinator, asset)
 
         object_id = f"{asset.kind}_{asset.asset_id}_price"
-
         self._attr_unique_id = f"{DOMAIN}_{object_id}"
         self._attr_name = "Price"
-
         self._attr_suggested_object_id = object_id
         self.entity_id = f"sensor.{object_id}"
 
@@ -192,10 +203,8 @@ class PortfolioValueSensor(_PortfolioBaseSensor):
         super().__init__(coordinator, asset)
 
         object_id = f"{asset.kind}_{asset.asset_id}_value"
-
         self._attr_unique_id = f"{DOMAIN}_{object_id}"
         self._attr_name = "Value"
-
         self._attr_suggested_object_id = object_id
         self.entity_id = f"sensor.{object_id}"
 
@@ -226,25 +235,26 @@ class PortfolioValueSensor(_PortfolioBaseSensor):
         price = self._get_price()
         if price is None:
             return None
-        amount = self._get_amount()
-        return round(price * amount, 2)
+
+        amount = self._get_amount_optional()
+        if amount is None:
+            return None
+
+        m = self._get_value_multiplier()
+        return round(price * amount * m, 2)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attrs: dict[str, Any] = {
+        return {
             "asset_id": self._asset.asset_id,
             "kind": self._asset.kind,
-            "amount": self._get_amount(),
+            "amount": self._get_amount_optional(),
             "price": self._get_price(),
             "source": self._get_source(),
             "updated_at": self._get_updated_at(),
             "instrument": self._asset.instrument,
+            "quote_url": self._get_quote_url(),
         }
-        if self._asset.source == "wienerborse_oekb":
-            q = self._get_quote_url()
-            if q:
-                attrs["quote_url"] = q
-        return attrs
 
 
 class _PortfolioTotalsBase(CoordinatorEntity, SensorEntity):
@@ -283,14 +293,20 @@ class _PortfolioTotalsBase(CoordinatorEntity, SensorEntity):
     def _handle_any_amount_updated(self, asset_id: str) -> None:
         self.async_write_ha_state()
 
-    def _get_amount(self, asset_id: str) -> float:
+    def _amounts_dict(self) -> dict[str, float] | None:
         amounts = getattr(self.coordinator, "amounts", None)
-        if not isinstance(amounts, dict):
-            return 0.0
+        return amounts if isinstance(amounts, dict) else None
+
+    def _get_amount_optional(self, asset_id: str) -> float | None:
+        amounts = self._amounts_dict()
+        if not amounts:
+            return None
+        if asset_id not in amounts:
+            return None
         try:
-            return float(amounts.get(asset_id, 0.0))
+            return float(amounts[asset_id])
         except (TypeError, ValueError):
-            return 0.0
+            return None
 
     def _get_price(self, asset_id: str) -> float | None:
         data = getattr(self.coordinator, "data", None)
@@ -307,47 +323,66 @@ class _PortfolioTotalsBase(CoordinatorEntity, SensorEntity):
         except (TypeError, ValueError):
             return None
 
+    def _get_value_multiplier(self) -> float:
+        try:
+            m = float(getattr(self.coordinator, "value_multiplier", 1.0))
+        except (TypeError, ValueError):
+            return 1.0
+        return m
+
     def _calc_total(self, assets: list[AssetDef]) -> tuple[float | None, dict[str, Any]]:
         included = [a.asset_id for a in assets]
+        missing_amounts: list[str] = []
         missing_prices: list[str] = []
         breakdown: dict[str, float] = {}
 
-        total = 0.0
-        has_any_price = False
+        if not assets:
+            return None, {"included_assets": included, "missing_amounts": [], "missing_prices": [], "breakdown": {}}
 
         for a in assets:
-            price = self._get_price(a.asset_id)
-            if price is None:
-                missing_prices.append(a.asset_id)
-                continue
+            if self._get_amount_optional(a.asset_id) is None:
+                missing_amounts.append(a.asset_id)
 
-            has_any_price = True
-            amount = self._get_amount(a.asset_id)
-            value = price * amount
-            total += value
-
-            if amount != 0.0:
-                breakdown[a.asset_id] = round(value, 2)
-
-        if not has_any_price:
+        if missing_amounts:
             return None, {
                 "included_assets": included,
-                "missing_prices": missing_prices,
-                "breakdown": breakdown,
+                "missing_amounts": missing_amounts,
+                "missing_prices": [],
+                "breakdown": {},
             }
+
+        for a in assets:
+            if self._get_price(a.asset_id) is None:
+                missing_prices.append(a.asset_id)
+
+        if missing_prices:
+            return None, {
+                "included_assets": included,
+                "missing_amounts": [],
+                "missing_prices": missing_prices,
+                "breakdown": {},
+            }
+
+        m = self._get_value_multiplier()
+
+        total = 0.0
+        for a in assets:
+            price = float(self._get_price(a.asset_id))  # safe due to check above
+            amount = float(self._get_amount_optional(a.asset_id))  # safe due to check above
+            value = price * amount * m
+            total += value
+            breakdown[a.asset_id] = round(value, 2)
 
         return round(total, 2), {
             "included_assets": included,
-            "missing_prices": missing_prices,
+            "missing_amounts": [],
+            "missing_prices": [],
             "breakdown": breakdown,
         }
 
     @property
     def available(self) -> bool:
-        if not super().available:
-            return False
-        value, _attrs = self._calc_total(self._assets)
-        return value is not None
+        return super().available
 
 
 class PortfolioGroupValueSensor(_PortfolioTotalsBase):
@@ -390,7 +425,6 @@ class PortfolioTotalValueSensor(_PortfolioTotalsBase):
         super().__init__(coordinator, assets)
 
         object_id = "portfolio_total_value"
-
         self._attr_unique_id = f"{DOMAIN}_{object_id}"
         self._attr_name = "Total Value"
         self._attr_suggested_object_id = object_id

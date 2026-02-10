@@ -28,6 +28,7 @@ Top level:
 
 * `update_interval` (int, seconds, optional, default `1800`)
 * `assets` (list, optional, default `[]`)
+* `value_multiplier`
 
 Per asset:
 

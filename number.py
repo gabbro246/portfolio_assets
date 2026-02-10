@@ -91,6 +91,9 @@ class PortfolioAmountNumber(RestoreEntity, NumberEntity):
         self.entity_id = f"number.{object_id}"
 
         self._attr_native_unit_of_measurement = asset.amount_unit or None
+
+        # Show 0 in the UI initially, but do not push it into coordinator.amounts yet
+        # That avoids value sensors calculating 0 during startup
         self._attr_native_value = 0.0
 
         self._attr_device_info = DeviceInfo(
@@ -101,7 +104,6 @@ class PortfolioAmountNumber(RestoreEntity, NumberEntity):
         )
 
         self._ensure_amount_store()
-        self._set_amount(0.0)
 
     def _ensure_amount_store(self) -> None:
         if not hasattr(self._coordinator, "amounts"):
@@ -126,15 +128,16 @@ class PortfolioAmountNumber(RestoreEntity, NumberEntity):
         await super().async_added_to_hass()
 
         last_state = await self.async_get_last_state()
-        if last_state is None:
-            return
-
-        try:
-            value = float(last_state.state)
-        except (TypeError, ValueError):
-            return
+        if last_state is not None:
+            try:
+                value = float(last_state.state)
+            except (TypeError, ValueError):
+                value = 0.0
+        else:
+            value = 0.0
 
         value = self._clamp(value)
+
         self._attr_native_value = value
         self._set_amount(value)
 
@@ -143,6 +146,7 @@ class PortfolioAmountNumber(RestoreEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         value = self._clamp(float(value))
+
         self._attr_native_value = value
         self._set_amount(value)
 

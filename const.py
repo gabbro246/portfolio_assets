@@ -6,9 +6,12 @@ PLATFORMS: list[str] = ["sensor", "number"]
 
 DEFAULT_UPDATE_INTERVAL = 1800
 
+# Multiplies Value sensors only (price and amount stay unchanged)
+DEFAULT_VALUE_MULTIPLIER = 1.0
+
 SOURCE_BINANCE = "binance"
 SOURCE_BOERSE_FRANKFURT = "boerse_frankfurt"
-SOURCE_WIENERBOERSE_OEKB = "wienerborse_oekb"
+SOURCE_WIENERBOERSE_OEKB = "wienerboerse_oekb"
 
 SUPPORTED_SOURCES: set[str] = {
     SOURCE_BINANCE,

@@ -18,6 +18,7 @@ from .const import (
     BINANCE_TICKER_PRICE_PATH,
     BOERSE_FRANKFURT_QUOTE_URL,
     DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_VALUE_MULTIPLIER,
     DOMAIN,
     HTTP_TIMEOUT,
     SOURCE_BINANCE,
@@ -45,11 +46,17 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
         self._oekb_cache: dict[str, tuple[str, str]] = {}
 
         interval_seconds = DEFAULT_UPDATE_INTERVAL
+        value_multiplier = float(DEFAULT_VALUE_MULTIPLIER)
+
         if isinstance(entry_data, dict):
             interval_seconds = _safe_int(entry_data.get("update_interval"), DEFAULT_UPDATE_INTERVAL)
+            value_multiplier = _safe_float(entry_data.get("value_multiplier"), float(DEFAULT_VALUE_MULTIPLIER))
+
             assets = entry_data.get("assets")
             if isinstance(assets, list):
                 self._assets = [a for a in assets if isinstance(a, dict)]
+
+        self.value_multiplier: float = value_multiplier
 
         super().__init__(
             hass,
@@ -67,6 +74,11 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
 
         interval_seconds = _safe_int(entry_data.get("update_interval"), DEFAULT_UPDATE_INTERVAL)
         self.update_interval = timedelta(seconds=interval_seconds)
+
+        self.value_multiplier = _safe_float(
+            entry_data.get("value_multiplier"),
+            float(DEFAULT_VALUE_MULTIPLIER),
+        )
 
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
         now = dt_util.utcnow().isoformat()
@@ -374,6 +386,13 @@ def _safe_int(value: Any, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return n if n > 0 else default
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
 
 
 def _parse_decimal_number(text: str) -> float | None:
