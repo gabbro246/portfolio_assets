@@ -34,6 +34,7 @@ def _asset_defs_from_entry(entry: ConfigEntry) -> list[AssetDef]:
     for raw in assets:
         if not isinstance(raw, dict):
             continue
+
         asset_id = str(raw.get("asset_id", "")).strip()
         name = str(raw.get("name", "")).strip()
         kind = str(raw.get("kind", "asset")).strip()
@@ -73,7 +74,6 @@ class PortfolioAmountNumber(RestoreEntity, NumberEntity):
     _attr_should_poll = False
     _attr_has_entity_name = True
 
-    # internal defaults, not exposed as configuration knobs
     _attr_native_min_value = 0.0
     _attr_native_max_value = 1_000_000_000.0
     _attr_native_step = 0.0001
@@ -82,8 +82,13 @@ class PortfolioAmountNumber(RestoreEntity, NumberEntity):
         self._coordinator = coordinator
         self._asset = asset
 
-        self._attr_unique_id = f"{DOMAIN}_{asset.asset_id}_amount"
+        object_id = f"{asset.kind}_{asset.asset_id}_amount"
+
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
         self._attr_name = "Amount"
+
+        self._attr_suggested_object_id = object_id
+        self.entity_id = f"number.{object_id}"
 
         self._attr_native_unit_of_measurement = asset.amount_unit or None
         self._attr_native_value = 0.0

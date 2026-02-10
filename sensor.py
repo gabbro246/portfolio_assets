@@ -74,10 +74,10 @@ async def async_setup_entry(
         entities.append(PortfolioPriceSensor(coordinator=coordinator, asset=a))
         entities.append(PortfolioValueSensor(coordinator=coordinator, asset=a))
 
-    entities.append(PortfolioGroupTotalValueSensor(coordinator=coordinator, assets=assets, group_kind="crypto"))
-    entities.append(PortfolioGroupTotalValueSensor(coordinator=coordinator, assets=assets, group_kind="etf"))
-    entities.append(PortfolioGroupTotalValueSensor(coordinator=coordinator, assets=assets, group_kind="fund"))
-    entities.append(PortfolioOverallTotalValueSensor(coordinator=coordinator, assets=assets))
+    entities.append(PortfolioGroupValueSensor(coordinator=coordinator, assets=assets, group_kind="crypto"))
+    entities.append(PortfolioGroupValueSensor(coordinator=coordinator, assets=assets, group_kind="etf"))
+    entities.append(PortfolioGroupValueSensor(coordinator=coordinator, assets=assets, group_kind="fund"))
+    entities.append(PortfolioTotalValueSensor(coordinator=coordinator, assets=assets))
 
     async_add_entities(entities)
 
@@ -156,8 +156,14 @@ class _PortfolioBaseSensor(CoordinatorEntity, SensorEntity):
 class PortfolioPriceSensor(_PortfolioBaseSensor):
     def __init__(self, coordinator: Any, asset: AssetDef) -> None:
         super().__init__(coordinator, asset)
-        self._attr_unique_id = f"{DOMAIN}_{asset.asset_id}_price"
+
+        object_id = f"{asset.kind}_{asset.asset_id}_price"
+
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
         self._attr_name = "Price"
+
+        self._attr_suggested_object_id = object_id
+        self.entity_id = f"sensor.{object_id}"
 
     @property
     def native_value(self) -> float | None:
@@ -184,8 +190,15 @@ class PortfolioPriceSensor(_PortfolioBaseSensor):
 class PortfolioValueSensor(_PortfolioBaseSensor):
     def __init__(self, coordinator: Any, asset: AssetDef) -> None:
         super().__init__(coordinator, asset)
-        self._attr_unique_id = f"{DOMAIN}_{asset.asset_id}_value"
+
+        object_id = f"{asset.kind}_{asset.asset_id}_value"
+
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
         self._attr_name = "Value"
+
+        self._attr_suggested_object_id = object_id
+        self.entity_id = f"sensor.{object_id}"
+
         self._unsub_amount: Any = None
 
     async def async_added_to_hass(self) -> None:
@@ -337,24 +350,28 @@ class _PortfolioTotalsBase(CoordinatorEntity, SensorEntity):
         return value is not None
 
 
-class PortfolioGroupTotalValueSensor(_PortfolioTotalsBase):
+class PortfolioGroupValueSensor(_PortfolioTotalsBase):
     def __init__(self, coordinator: Any, assets: list[AssetDef], group_kind: str) -> None:
         self._group_kind = group_kind
         group_assets = [a for a in assets if a.kind == group_kind]
         super().__init__(coordinator, group_assets)
 
         if group_kind == "crypto":
-            self._attr_unique_id = f"{DOMAIN}_portfolio_crypto_total_value"
-            self._attr_name = "Crypto Total Value"
+            object_id = "portfolio_crypto_value"
+            self._attr_name = "Crypto Value"
         elif group_kind == "etf":
-            self._attr_unique_id = f"{DOMAIN}_portfolio_etf_total_value"
-            self._attr_name = "ETF Total Value"
+            object_id = "portfolio_etf_value"
+            self._attr_name = "ETF Value"
         elif group_kind == "fund":
-            self._attr_unique_id = f"{DOMAIN}_portfolio_fund_total_value"
-            self._attr_name = "Fund Total Value"
+            object_id = "portfolio_fund_value"
+            self._attr_name = "Fund Value"
         else:
-            self._attr_unique_id = f"{DOMAIN}_portfolio_{group_kind}_total_value"
-            self._attr_name = f"{group_kind} Total Value"
+            object_id = f"portfolio_{group_kind}_value"
+            self._attr_name = f"{group_kind} Value"
+
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
+        self._attr_suggested_object_id = object_id
+        self.entity_id = f"sensor.{object_id}"
 
     @property
     def native_value(self) -> float | None:
@@ -368,11 +385,16 @@ class PortfolioGroupTotalValueSensor(_PortfolioTotalsBase):
         return attrs
 
 
-class PortfolioOverallTotalValueSensor(_PortfolioTotalsBase):
+class PortfolioTotalValueSensor(_PortfolioTotalsBase):
     def __init__(self, coordinator: Any, assets: list[AssetDef]) -> None:
         super().__init__(coordinator, assets)
-        self._attr_unique_id = f"{DOMAIN}_portfolio_total_value"
-        self._attr_name = "Portfolio Total Value"
+
+        object_id = "portfolio_total_value"
+
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
+        self._attr_name = "Total Value"
+        self._attr_suggested_object_id = object_id
+        self.entity_id = f"sensor.{object_id}"
 
     @property
     def native_value(self) -> float | None:
