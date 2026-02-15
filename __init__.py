@@ -12,6 +12,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    CHANGE_WINDOWS_DAYS,
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_VALUE_MULTIPLIER,
     DOMAIN,
@@ -22,7 +23,6 @@ from .const import (
     SUPPORTED_KINDS,
 )
 from .coordinator import PortfolioDataCoordinator
-
 
 ASSET_SCHEMA = vol.Schema(
     {
@@ -42,6 +42,10 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Optional("update_interval", default=DEFAULT_UPDATE_INTERVAL): cv.positive_int,
                 vol.Optional("value_multiplier", default=DEFAULT_VALUE_MULTIPLIER): vol.Coerce(float),
+                vol.Optional("change_windows_days", default=list(CHANGE_WINDOWS_DAYS)): vol.All(
+                    cv.ensure_list,
+                    [cv.positive_int],
+                ),
                 vol.Optional("assets", default=[]): vol.All(cv.ensure_list, [ASSET_SCHEMA]),
             }
         )
@@ -50,11 +54,39 @@ CONFIG_SCHEMA = vol.Schema(
 )
 
 
+def _normalize_change_windows(value: Any) -> list[int]:
+    if value is None:
+        return list(CHANGE_WINDOWS_DAYS)
+
+    if isinstance(value, (int, float, str)):
+        value = [value]
+
+    if not isinstance(value, (list, tuple)):
+        return list(CHANGE_WINDOWS_DAYS)
+
+    out: list[int] = []
+    seen: set[int] = set()
+    for v in value:
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            continue
+        if n <= 0:
+            continue
+        if n in seen:
+            continue
+        seen.add(n)
+        out.append(n)
+
+    return out if out else list(CHANGE_WINDOWS_DAYS)
+
+
 def _normalize_config(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return {
             "update_interval": DEFAULT_UPDATE_INTERVAL,
             "value_multiplier": float(DEFAULT_VALUE_MULTIPLIER),
+            "change_windows_days": list(CHANGE_WINDOWS_DAYS),
             "assets": [],
         }
 
@@ -67,6 +99,8 @@ def _normalize_config(data: Any) -> dict[str, Any]:
         value_multiplier = float(data.get("value_multiplier", DEFAULT_VALUE_MULTIPLIER))
     except (TypeError, ValueError):
         value_multiplier = float(DEFAULT_VALUE_MULTIPLIER)
+
+    change_windows_days = _normalize_change_windows(data.get("change_windows_days", list(CHANGE_WINDOWS_DAYS)))
 
     assets_in = data.get("assets", [])
     assets_out: list[dict[str, Any]] = []
@@ -90,6 +124,7 @@ def _normalize_config(data: Any) -> dict[str, Any]:
     return {
         "update_interval": update_interval,
         "value_multiplier": value_multiplier,
+        "change_windows_days": change_windows_days,
         "assets": assets_out,
     }
 

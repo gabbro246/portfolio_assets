@@ -17,6 +17,7 @@ from .const import (
     BINANCE_API_BASE,
     BINANCE_TICKER_PRICE_PATH,
     BOERSE_FRANKFURT_QUOTE_URL,
+    CHANGE_WINDOWS_DAYS,
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_VALUE_MULTIPLIER,
     DOMAIN,
@@ -36,6 +37,33 @@ _MAX_PAGES_HARD_LIMIT = 120
 _NUMBER_RE = re.compile(r"(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d+)|\d+(?:[.,]\d+)?)")
 
 
+def _normalize_change_windows(value: Any, default: tuple[int, ...]) -> tuple[int, ...]:
+    if value is None:
+        return default
+
+    if isinstance(value, (int, float, str)):
+        value = [value]
+
+    if not isinstance(value, (list, tuple)):
+        return default
+
+    out: list[int] = []
+    seen: set[int] = set()
+    for v in value:
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            continue
+        if n <= 0:
+            continue
+        if n in seen:
+            continue
+        seen.add(n)
+        out.append(n)
+
+    return tuple(out) if out else default
+
+
 class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     def __init__(self, hass: HomeAssistant, entry_data: dict[str, Any] | None = None) -> None:
         self._session = async_get_clientsession(hass)
@@ -47,16 +75,19 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
 
         interval_seconds = DEFAULT_UPDATE_INTERVAL
         value_multiplier = float(DEFAULT_VALUE_MULTIPLIER)
+        change_windows_days = tuple(CHANGE_WINDOWS_DAYS)
 
         if isinstance(entry_data, dict):
             interval_seconds = _safe_int(entry_data.get("update_interval"), DEFAULT_UPDATE_INTERVAL)
             value_multiplier = _safe_float(entry_data.get("value_multiplier"), float(DEFAULT_VALUE_MULTIPLIER))
+            change_windows_days = _normalize_change_windows(entry_data.get("change_windows_days"), tuple(CHANGE_WINDOWS_DAYS))
 
             assets = entry_data.get("assets")
             if isinstance(assets, list):
                 self._assets = [a for a in assets if isinstance(a, dict)]
 
         self.value_multiplier: float = value_multiplier
+        self.change_windows_days: tuple[int, ...] = change_windows_days
 
         super().__init__(
             hass,
@@ -78,6 +109,11 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
         self.value_multiplier = _safe_float(
             entry_data.get("value_multiplier"),
             float(DEFAULT_VALUE_MULTIPLIER),
+        )
+
+        self.change_windows_days = _normalize_change_windows(
+            entry_data.get("change_windows_days"),
+            tuple(CHANGE_WINDOWS_DAYS),
         )
 
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
@@ -240,17 +276,14 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
             "User-Agent": "HomeAssistant/portfolio_assets",
         }
 
-        # instrument can be a full quote URL
         if instrument.startswith("http://") or instrument.startswith("https://"):
             quote_url = instrument
             html = await self._fetch_text(quote_url, headers=headers)
             price = _parse_oekb_price_from_html(html)
             return asset_id, price, quote_url
 
-        # otherwise treat as ISIN
         isin = instrument
 
-        # 1) Try direct quote by ISIN (may redirect to canonical URL)
         direct_url = f"{WIENERBOERSE_OEKB_QUOTE_URL_PREFIX}?ISIN={isin}"
         try:
             html, final_url = await self._fetch_text_with_final_url(direct_url, headers=headers)
@@ -261,7 +294,6 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
         except Exception as err:
             _LOGGER.debug("OeKB direct-by-ISIN failed for %s: %s", isin, err)
 
-        # 2) Resolve canonical quote URL via list pages
         quote_url = await self._resolve_oekb_quote_url(isin, headers=headers)
         if not quote_url:
             _LOGGER.debug("OeKB: could not resolve quote url for ISIN %s", isin)

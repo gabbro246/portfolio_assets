@@ -1,7 +1,7 @@
 {
   "domain": "portfolio_assets",
   "name": "Portfolio Assets",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "config_flow": true,
   "single_config_entry": true,
   "documentation": "https://www.github.com/gabbro246/portfolio_assets",
@@ -9,5 +9,6 @@
   "iot_class": "cloud_polling",
   "dependencies": [],
   "codeowners": [],
-  "requirements": []
+  "requirements": [],
+  "after_dependencies": ["recorder"]
 }

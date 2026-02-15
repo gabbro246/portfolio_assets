@@ -6,6 +6,9 @@ PLATFORMS: list[str] = ["sensor", "number"]
 
 DEFAULT_UPDATE_INTERVAL = 1800
 
+# Percent change windows (days)
+CHANGE_WINDOWS_DAYS: tuple[int, ...] = (1, 7, 30, 365)
+
 # Multiplies Value sensors only (price and amount stay unchanged)
 DEFAULT_VALUE_MULTIPLIER = 1.0
 
