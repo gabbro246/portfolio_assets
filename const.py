@@ -26,6 +26,10 @@ SUPPORTED_KINDS: set[str] = {"crypto", "etf", "fund"}
 
 HTTP_TIMEOUT = 20
 
+# A price that moves by at least this factor must be seen twice in the same
+# direction before it replaces the last accepted price.
+PRICE_CHANGE_CONFIRMATION_RATIO = 10.0
+
 BINANCE_API_BASE = "https://data-api.binance.vision"
 BINANCE_TICKER_PRICE_PATH = "/api/v3/ticker/price"
 

@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_VALUE_MULTIPLIER,
     DOMAIN,
     HTTP_TIMEOUT,
+    PRICE_CHANGE_CONFIRMATION_RATIO,
     SOURCE_BINANCE,
     SOURCE_BOERSE_FRANKFURT,
     SOURCE_WIENERBOERSE_OEKB,
@@ -69,6 +70,11 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
         self._session = async_get_clientsession(hass)
         self._assets: list[dict[str, Any]] = []
         self.amounts: dict[str, float] = {}
+
+        # asset_id -> direction (-1 for a fall, 1 for a rise). This deliberately
+        # stores no price target: a genuinely volatile asset only needs to
+        # confirm that the order-of-magnitude move persists for one more read.
+        self._pending_price_directions: dict[str, int] = {}
 
         # ISIN -> (id_notation, quote_url)
         self._oekb_cache: dict[str, tuple[str, str]] = {}
@@ -196,7 +202,61 @@ class PortfolioDataCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]])
                     continue
                 data[asset_id]["price"] = price
 
+        self._apply_price_plausibility_guard(data)
         return data
+
+    def _apply_price_plausibility_guard(self, data: dict[str, dict[str, Any]]) -> None:
+        """Keep one-off, order-of-magnitude readings out of sensor state."""
+        previous_data = self.data if isinstance(self.data, dict) else {}
+        active_asset_ids = set(data)
+
+        for asset_id, row in data.items():
+            if "price" not in row:
+                self._pending_price_directions.pop(asset_id, None)
+                continue
+
+            candidate = _valid_price(row.get("price"))
+            previous_row = previous_data.get(asset_id)
+            previous = _valid_price(previous_row.get("price")) if isinstance(previous_row, dict) else None
+
+            if candidate is None:
+                self._pending_price_directions.pop(asset_id, None)
+                if previous is not None:
+                    _restore_previous_price(row, previous_row)
+                else:
+                    row.pop("price", None)
+                continue
+
+            if previous is None:
+                self._pending_price_directions.pop(asset_id, None)
+                continue
+
+            direction = _implausible_change_direction(previous, candidate)
+            if direction == 0:
+                self._pending_price_directions.pop(asset_id, None)
+                continue
+
+            if self._pending_price_directions.get(asset_id) == direction:
+                self._pending_price_directions.pop(asset_id, None)
+                _LOGGER.info(
+                    "Accepted confirmed large price change for %s: %s -> %s",
+                    asset_id,
+                    previous,
+                    candidate,
+                )
+                continue
+
+            self._pending_price_directions[asset_id] = direction
+            _restore_previous_price(row, previous_row)
+            _LOGGER.warning(
+                "Ignored unconfirmed large price change for %s: %s -> %s",
+                asset_id,
+                previous,
+                candidate,
+            )
+
+        for asset_id in set(self._pending_price_directions) - active_asset_ids:
+            self._pending_price_directions.pop(asset_id, None)
 
     async def _fetch_binance_prices(self, binance_assets: list[dict[str, Any]]) -> dict[str, float]:
         symbols: list[str] = []
@@ -425,6 +485,31 @@ def _safe_float(value: Any, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return float(default)
+
+
+def _valid_price(value: Any) -> float | None:
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    return price if math.isfinite(price) and price > 0 else None
+
+
+def _implausible_change_direction(previous: float, candidate: float) -> int:
+    if candidate >= previous * PRICE_CHANGE_CONFIRMATION_RATIO:
+        return 1
+    if candidate <= previous / PRICE_CHANGE_CONFIRMATION_RATIO:
+        return -1
+    return 0
+
+
+def _restore_previous_price(row: dict[str, Any], previous_row: dict[str, Any]) -> None:
+    row["price"] = previous_row["price"]
+    if "updated_at" in previous_row:
+        row["updated_at"] = previous_row["updated_at"]
+    for key in ("source", "quote_url"):
+        if key in previous_row:
+            row.setdefault(key, previous_row[key])
 
 
 def _parse_decimal_number(text: str) -> float | None:

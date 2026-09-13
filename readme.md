@@ -8,6 +8,10 @@ Custom Home Assistant integration that creates one device per asset with three e
 
 It also creates one Portfolio device with total value sensors (crypto, etf, fund, overall).
 
+To prevent brief bad source readings from affecting the portfolio, invalid prices
+are ignored and order-of-magnitude changes are accepted after a second reading
+confirms the same direction. Normal price changes are applied immediately.
+
 ## Configuration (configuration.yaml)
 
 ```yaml
