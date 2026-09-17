@@ -12,6 +12,19 @@ To prevent brief bad source readings from affecting the portfolio, invalid price
 are ignored and order-of-magnitude changes are accepted after a second reading
 confirms the same direction. Normal price changes are applied immediately.
 
+## Install with HACS
+
+1. Open HACS in Home Assistant.
+2. Open the three-dot menu and select **Custom repositories**.
+3. Add `https://github.com/gabbro246/portfolio_assets` and choose **Integration**.
+4. Open **Portfolio Assets** in HACS and select **Download**.
+5. Restart Home Assistant.
+6. Go to **Settings → Devices & services → Add integration** and select **Portfolio Assets**.
+
+HACS tracks updates from the default branch, so release tags are not required.
+
+For a manual installation, copy `custom_components/portfolio_assets` into the `custom_components` directory in your Home Assistant configuration directory.
+
 ## Configuration (configuration.yaml)
 
 ```yaml
