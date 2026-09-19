@@ -1,31 +1,41 @@
 # Portfolio Assets
 
-Custom Home Assistant integration that creates one device per asset with three entities:
+<p align="center">
+  <img src="custom_components/portfolio_assets/brand/icon.png" alt="Portfolio Assets icon" width="160">
+</p>
 
-* Price (fetched from a data source)
-* Amount (user editable Number entity)
-* Value (Price * Amount)
+Portfolio Assets tracks investments in Home Assistant. Each asset has its own
+device showing its current price, the amount you own, and its total value.
 
-It also creates one Portfolio device with total value sensors (crypto, etf, fund, overall).
+## What it does
 
-To prevent brief bad source readings from affecting the portfolio, invalid prices
-are ignored and order-of-magnitude changes are accepted after a second reading
-confirms the same direction. Normal price changes are applied immediately.
+The integration creates one device for each cryptocurrency, ETF, or fund in
+your portfolio. It also creates a Portfolio device with combined totals and
+changes over time.
+
+Prices can be retrieved from Binance, Börse Frankfurt, and Wiener Börse OeKB.
+Brief invalid readings are ignored, and unusually large changes are confirmed
+before replacing the last reliable price.
 
 ## Install with HACS
 
-1. Open HACS in Home Assistant.
-2. Open the three-dot menu and select **Custom repositories**.
-3. Add `https://github.com/gabbro246/portfolio_assets` and choose **Integration**.
-4. Open **Portfolio Assets** in HACS and select **Download**.
-5. Restart Home Assistant.
-6. Go to **Settings → Devices & services → Add integration** and select **Portfolio Assets**.
+[![Open Portfolio Assets in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gabbro246&repository=portfolio_assets&category=integration)
 
-HACS tracks updates from the default branch, so release tags are not required.
+1. Select the button above from a device where you are signed in to Home
+   Assistant, then confirm the repository in HACS.
+2. In HACS, download **Portfolio Assets**.
+3. Restart Home Assistant.
+4. Go to **Settings → Devices & services**, choose **Add integration**, and
+   search for **Portfolio Assets**.
 
-For a manual installation, copy `custom_components/portfolio_assets` into the `custom_components` directory in your Home Assistant configuration directory.
+You need [HACS](https://hacs.xyz/) installed first. If the button cannot open
+your Home Assistant, add `https://github.com/gabbro246/portfolio_assets` in
+HACS as an **Integration** repository instead.
 
-## Configuration (configuration.yaml)
+## Set up your portfolio
+
+Add your assets to `configuration.yaml`, then restart Home Assistant. This
+example tracks Bitcoin through Binance:
 
 ```yaml
 portfolio_assets:
@@ -39,104 +49,27 @@ portfolio_assets:
       amount_unit: BTC
 ```
 
-### Options
+For each asset, set:
 
-Top level:
+- `asset_id`: A short unique identifier, such as `btc` or `eunl`.
+- `name`: The name shown in Home Assistant.
+- `kind`: `crypto`, `etf`, or `fund`.
+- `source`: `binance`, `boerse_frankfurt`, or `wienerboerse_oekb`.
+- `instrument`: A Binance symbol, an ISIN, or a full Wiener Börse quote URL.
+- `amount_unit`: The unit shown beside the amount, such as `BTC` or `EUNL`.
 
-* `update_interval` (int, seconds, optional, default `1800`)
-* `assets` (list, optional, default `[]`)
-* `value_multiplier`
+For Börse Frankfurt assets, you can also set `mic`; it defaults to `XETR`.
+The portfolio refreshes every 30 minutes by default. Change `update_interval`
+to use a different number of seconds.
 
-Per asset:
+After restarting Home Assistant, enter how much of each asset you own on its
+device page. Add more asset blocks to the YAML list whenever needed.
 
-* `asset_id` (string, required)
-  Used in unique ids and entity ids. Must be unique.
-* `name` (string, required)
-  Device name in Home Assistant.
-* `kind` (string, required)
-  One of: `crypto`, `etf`, `fund`
-* `source` (string, required)
-  One of: `binance`, `boerse_frankfurt`, `wienerboerse_oekb`
-* `instrument` (string, required)
+## Manual installation
 
-  * `binance`: symbol like `BTCEUR`, `ETHEUR`, `ADAEUR`
-  * `boerse_frankfurt`: ISIN like `IE00B4L5Y983`
-  * `wienerboerse_oekb`: ISIN like `AT0000722582` or a full quote URL
-* `amount_unit` (string, optional, default empty)
-  Unit shown on the Amount entity (e.g. `BTC`, `EUNL`, `Anteile`)
-* `mic` (string, optional, default `XETR`)
-  Only used for `boerse_frankfurt`.
+Copy `custom_components/portfolio_assets` into the `custom_components`
+directory in your Home Assistant configuration, then restart Home Assistant.
 
+## License
 
-## Examples
-
-### Crypto (Binance)
-
-```yaml
-portfolio_assets:
-  update_interval: 900
-  assets:
-    - asset_id: btc
-      name: Bitcoin
-      kind: crypto
-      source: binance
-      instrument: BTCEUR
-      amount_unit: BTC
-
-    - asset_id: doge
-      name: Dogecoin
-      kind: crypto
-      source: binance
-      instrument: DOGEEUR
-      amount_unit: DOGE
-```
-
-### ETFs (Börse Frankfurt / XETRA)
-
-```yaml
-portfolio_assets:
-  assets:
-    - asset_id: eunl
-      name: iShares Core MSCI World (EUNL)
-      kind: etf
-      source: boerse_frankfurt
-      instrument: IE00B4L5Y983
-      mic: XETR
-      amount_unit: EUNL
-
-    - asset_id: eunm
-      name: iShares MSCI EM (EUNM)
-      kind: etf
-      source: boerse_frankfurt
-      instrument: IE00B4L5YC18
-      mic: XETR
-      amount_unit: EUNM
-```
-
-### Funds (Wiener Börse OeKB)
-
-Using ISIN:
-
-```yaml
-portfolio_assets:
-  assets:
-    - asset_id: kepler_mix_solide
-      name: KEPLER Mix Solide
-      kind: fund
-      source: wienerboerse_oekb
-      instrument: AT0000722582
-      amount_unit: Anteile
-```
-
-Using full quote URL:
-
-```yaml
-portfolio_assets:
-  assets:
-    - asset_id: kepler_mix_solide
-      name: KEPLER Mix Solide
-      kind: fund
-      source: wienerboerse_oekb
-      instrument: "https://www.wienerborse.at/en/market-data/funds-data-provided-by-oekb/quote/?ID_NOTATION=8595392&ISIN=AT0000722582&cHash=759f3e6de615d08c78b396a8a7e4d3f7"
-      amount_unit: Anteile
-```
+[MIT](LICENSE)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.10
+
+- Added clear version numbers and release notes to HACS updates.
+- Updated the integration icon with a transparent, consistent design.
+- Made the setup instructions shorter and easier to follow.
+
 ## 0.1.9
 
 - The integration can now be installed and updated through HACS.

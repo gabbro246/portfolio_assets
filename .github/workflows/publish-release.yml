@@ -1,0 +1,94 @@
+name: Publish HACS release notes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom_components/portfolio_assets/manifest.json
+      - CHANGELOG.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Prepare release notes
+        id: release
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          manifest="custom_components/portfolio_assets/manifest.json"
+          version="$(jq -r '.version' "$manifest")"
+
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "The integration manifest has no version."
+            exit 1
+          fi
+
+          # A normal push only publishes a release when its manifest version changed.
+          if [ "$EVENT_NAME" = "push" ] && git cat-file -e "$BEFORE_SHA:$manifest" 2>/dev/null; then
+            previous_version="$(git show "$BEFORE_SHA:$manifest" | jq -r '.version')"
+            if [ "$version" = "$previous_version" ]; then
+              echo "create=false" >> "$GITHUB_OUTPUT"
+              echo "The version has not changed; no release will be published."
+              exit 0
+            fi
+          fi
+
+          notes="$(awk -v heading="## $version" '
+            $0 == heading { in_section = 1; next }
+            in_section && /^## / { exit }
+            in_section { print }
+          ' CHANGELOG.md)"
+
+          if [ -z "$notes" ]; then
+            echo "No matching CHANGELOG.md section found for version $version."
+            exit 1
+          fi
+
+          {
+            echo "create=true"
+            echo "version=$version"
+            echo "notes<<EOF"
+            echo "$notes"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        if: steps.release.outputs.create == 'true'
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          NOTES: ${{ steps.release.outputs.notes }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const version = process.env.VERSION;
+
+            try {
+              await github.rest.repos.getReleaseByTag({ owner, repo, tag: version });
+              core.info(`Release ${version} already exists; nothing to do.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+
+              await github.rest.repos.createRelease({
+                owner,
+                repo,
+                tag_name: version,
+                target_commitish: context.sha,
+                name: version,
+                body: process.env.NOTES.trim(),
+              });
+              core.info(`Published release ${version}.`);
+            }
