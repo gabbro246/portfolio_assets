@@ -40,6 +40,7 @@ example tracks Bitcoin through Binance:
 ```yaml
 portfolio_assets:
   update_interval: 1800
+  change_windows_days: [1, 7]
   assets:
     - asset_id: btc
       name: Bitcoin
@@ -49,7 +50,7 @@ portfolio_assets:
       amount_unit: BTC
 ```
 
-For each asset, set:
+Configuration options:
 
 - `asset_id`: A short unique identifier, such as `btc` or `eunl`.
 - `name`: The name shown in Home Assistant.
@@ -57,6 +58,8 @@ For each asset, set:
 - `source`: `binance`, `boerse_frankfurt`, or `wienerboerse_oekb`.
 - `instrument`: A Binance symbol, an ISIN, or a full Wiener Börse quote URL.
 - `amount_unit`: The unit shown beside the amount, such as `BTC` or `EUNL`.
+- `change_windows_days`: The periods for matching Change and Delta entities,
+  such as `1` and `7` days.
 
 For Börse Frankfurt assets, you can also set `mic`; it defaults to `XETR`.
 The portfolio refreshes every 30 minutes by default. Change `update_interval`

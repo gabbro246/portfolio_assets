@@ -85,6 +85,20 @@ def _value_entity_id_for_total() -> str:
     return "sensor.portfolio_total_value"
 
 
+def _currency_from_coordinator(coordinator: Any) -> str:
+    currency = getattr(coordinator, "currency", None)
+    if isinstance(currency, str) and currency.strip():
+        return currency.strip().upper()
+
+    hass = getattr(coordinator, "hass", None)
+    config = getattr(hass, "config", None)
+    currency = getattr(config, "currency", None)
+    if isinstance(currency, str) and currency.strip():
+        return currency.strip().upper()
+
+    return "EUR"
+
+
 def _get_windows_from_coordinator(coordinator: Any) -> tuple[int, ...]:
     value = getattr(coordinator, "change_windows_days", None)
     if isinstance(value, tuple) and all(isinstance(x, int) and x > 0 for x in value):
@@ -136,6 +150,7 @@ async def async_setup_entry(
     for a in assets:
         for days in windows:
             entities.append(PortfolioAssetChangeSensor(coordinator=coordinator, asset=a, window_days=days))
+            entities.append(PortfolioAssetDeltaSensor(coordinator=coordinator, asset=a, window_days=days))
 
     for group_kind in ("crypto", "etf", "fund"):
         for days in windows:
@@ -147,9 +162,18 @@ async def async_setup_entry(
                     window_days=days,
                 )
             )
+            entities.append(
+                PortfolioGroupDeltaSensor(
+                    coordinator=coordinator,
+                    assets=assets,
+                    group_kind=group_kind,
+                    window_days=days,
+                )
+            )
 
     for days in windows:
         entities.append(PortfolioTotalChangeSensor(coordinator=coordinator, assets=assets, window_days=days))
+        entities.append(PortfolioTotalDeltaSensor(coordinator=coordinator, assets=assets, window_days=days))
 
     async_add_entities(entities)
 
@@ -637,14 +661,19 @@ class PortfolioAssetChangeSensor(_PortfolioBaseSensor):
             self._window_days,
         )
 
-        if baseline is None or baseline == 0:
+        if baseline is None or not self._baseline_is_usable(baseline):
             self._attr_native_value = None
             self.async_write_ha_state()
             return
 
-        change_pct = (current_value - baseline) / baseline * 100.0
-        self._attr_native_value = round(change_pct, 2)
+        self._attr_native_value = self._calculate_period_value(current_value, baseline)
         self.async_write_ha_state()
+
+    def _baseline_is_usable(self, baseline: float) -> bool:
+        return baseline != 0
+
+    def _calculate_period_value(self, current_value: float, baseline: float) -> float:
+        return round((current_value - baseline) / baseline * 100.0, 2)
 
     def _current_value(self) -> float | None:
         price = self._get_price()
@@ -668,6 +697,27 @@ class PortfolioAssetChangeSensor(_PortfolioBaseSensor):
             "window_days": self._window_days,
             "baseline_statistic_id": self._target_statistic_id,
         }
+
+
+class PortfolioAssetDeltaSensor(PortfolioAssetChangeSensor):
+    _attr_entity_registry_enabled_default = False
+    _attr_icon = "mdi:delta"
+
+    def __init__(self, coordinator: Any, asset: AssetDef, window_days: int) -> None:
+        super().__init__(coordinator, asset, window_days)
+
+        object_id = f"{asset.kind}_{asset.asset_id}_delta_{self._window_days}d"
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
+        self._attr_name = f"Delta {self._window_days}d"
+        self._attr_suggested_object_id = object_id
+        self._attr_native_unit_of_measurement = _currency_from_coordinator(coordinator)
+        self.entity_id = f"sensor.{object_id}"
+
+    def _baseline_is_usable(self, baseline: float) -> bool:
+        return True
+
+    def _calculate_period_value(self, current_value: float, baseline: float) -> float:
+        return round(current_value - baseline, 2)
 
 
 class _PortfolioChangeBase(_PortfolioTotalsBase):
@@ -707,14 +757,19 @@ class _PortfolioChangeBase(_PortfolioTotalsBase):
             self._window_days,
         )
 
-        if baseline is None or baseline == 0:
+        if baseline is None or not self._baseline_is_usable(baseline):
             self._attr_native_value = None
             self.async_write_ha_state()
             return
 
-        change_pct = (current_value - baseline) / baseline * 100.0
-        self._attr_native_value = round(change_pct, 2)
+        self._attr_native_value = self._calculate_period_value(current_value, baseline)
         self.async_write_ha_state()
+
+    def _baseline_is_usable(self, baseline: float) -> bool:
+        return baseline != 0
+
+    def _calculate_period_value(self, current_value: float, baseline: float) -> float:
+        return round((current_value - baseline) / baseline * 100.0, 2)
 
     @property
     def native_value(self) -> float | None:
@@ -765,5 +820,61 @@ class PortfolioTotalChangeSensor(_PortfolioChangeBase):
         object_id = f"portfolio_total_change_{self._window_days}d"
         self._attr_unique_id = f"{DOMAIN}_{object_id}"
         self._attr_name = f"Total Change {self._window_days}d"
+        self._attr_suggested_object_id = object_id
+        self.entity_id = f"sensor.{object_id}"
+
+
+class _PortfolioDeltaBase(_PortfolioChangeBase):
+    _attr_entity_registry_enabled_default = False
+    _attr_icon = "mdi:delta"
+
+    def __init__(self, coordinator: Any, assets: list[AssetDef], window_days: int, target_statistic_id: str) -> None:
+        super().__init__(coordinator, assets, window_days, target_statistic_id)
+        self._attr_native_unit_of_measurement = _currency_from_coordinator(coordinator)
+
+    def _baseline_is_usable(self, baseline: float) -> bool:
+        return True
+
+    def _calculate_period_value(self, current_value: float, baseline: float) -> float:
+        return round(current_value - baseline, 2)
+
+
+class PortfolioGroupDeltaSensor(_PortfolioDeltaBase):
+    def __init__(self, coordinator: Any, assets: list[AssetDef], group_kind: str, window_days: int) -> None:
+        self._group_kind = group_kind
+        group_assets = [a for a in assets if a.kind == group_kind]
+
+        target_statistic_id = _value_entity_id_for_group(group_kind)
+        super().__init__(coordinator, group_assets, window_days, target_statistic_id)
+
+        object_id = f"portfolio_{group_kind}_delta_{self._window_days}d"
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
+        self._attr_suggested_object_id = object_id
+        self.entity_id = f"sensor.{object_id}"
+
+        if group_kind == "crypto":
+            self._attr_name = f"Crypto Delta {self._window_days}d"
+        elif group_kind == "etf":
+            self._attr_name = f"ETF Delta {self._window_days}d"
+        elif group_kind == "fund":
+            self._attr_name = f"Fund Delta {self._window_days}d"
+        else:
+            self._attr_name = f"{group_kind} Delta {self._window_days}d"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attrs = super().extra_state_attributes
+        attrs["group_kind"] = self._group_kind
+        return attrs
+
+
+class PortfolioTotalDeltaSensor(_PortfolioDeltaBase):
+    def __init__(self, coordinator: Any, assets: list[AssetDef], window_days: int) -> None:
+        target_statistic_id = _value_entity_id_for_total()
+        super().__init__(coordinator, assets, window_days, target_statistic_id)
+
+        object_id = f"portfolio_total_delta_{self._window_days}d"
+        self._attr_unique_id = f"{DOMAIN}_{object_id}"
+        self._attr_name = f"Total Delta {self._window_days}d"
         self._attr_suggested_object_id = object_id
         self.entity_id = f"sensor.{object_id}"
