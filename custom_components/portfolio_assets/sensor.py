@@ -606,7 +606,7 @@ class PortfolioTotalValueSensor(_PortfolioTotalsBase):
 class PortfolioAssetChangeSensor(_PortfolioBaseSensor):
     _attr_icon = "mdi:trending-up"
     _attr_native_unit_of_measurement = "%"
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = None
 
     def __init__(self, coordinator: Any, asset: AssetDef, window_days: int) -> None:
         super().__init__(coordinator, asset)
@@ -700,7 +700,7 @@ class PortfolioAssetChangeSensor(_PortfolioBaseSensor):
 
 
 class PortfolioAssetDeltaSensor(PortfolioAssetChangeSensor):
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _attr_icon = "mdi:delta"
 
     def __init__(self, coordinator: Any, asset: AssetDef, window_days: int) -> None:
@@ -723,7 +723,7 @@ class PortfolioAssetDeltaSensor(PortfolioAssetChangeSensor):
 class _PortfolioChangeBase(_PortfolioTotalsBase):
     _attr_icon = "mdi:trending-up"
     _attr_native_unit_of_measurement = "%"
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = None
 
     def __init__(self, coordinator: Any, assets: list[AssetDef], window_days: int, target_statistic_id: str) -> None:
         super().__init__(coordinator, assets)
@@ -825,7 +825,7 @@ class PortfolioTotalChangeSensor(_PortfolioChangeBase):
 
 
 class _PortfolioDeltaBase(_PortfolioChangeBase):
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _attr_icon = "mdi:delta"
 
     def __init__(self, coordinator: Any, assets: list[AssetDef], window_days: int, target_statistic_id: str) -> None:

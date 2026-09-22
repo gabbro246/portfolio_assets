@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.12
+- Change and Delta entities are enabled automatically without long-term statistics.
+
 ## 0.1.11
 - Added optional Delta entities showing the value gained or lost over each period.
 
